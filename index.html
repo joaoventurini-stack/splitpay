@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SplitPay — Separador de Comprovantes</title>
+
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- pdf-lib CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <!-- JSZip for batch download -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface2: #1c1c27;
+      --border: #2a2a3d;
+      --accent: #6ee7b7;
+      --accent2: #818cf8;
+      --warn: #fb923c;
+      --danger: #f87171;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --card-shadow: 0 0 0 1px var(--border), 0 4px 32px rgba(0,0,0,.5);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(110,231,183,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(110,231,183,.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow-orb {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(110,231,183,.07) 0%, transparent 70%);
+      top: -200px;
+      right: -200px;
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0); }
+      to   { transform: translate(-60px, 80px); }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -2px;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .logo span { color: var(--accent2); }
+
+    .tagline {
+      font-size: .7rem;
+      color: var(--muted);
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+      padding-left: 2px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      padding: 64px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(110,231,183,.04), rgba(129,140,248,.04));
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: var(--accent);
+      background: var(--surface2);
+      transform: translateY(-2px);
+    }
+
+    .drop-zone:hover::before, .drop-zone.dragging::before { opacity: 1; }
+
+    .drop-icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      display: block;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-8px); }
+    }
+
+    .drop-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .drop-sub {
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    #fileInput { display: none; }
+
+    /* Config panel */
+    .config-panel {
+      margin-top: 32px;
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 28px;
+      display: none;
+    }
+
+    .config-panel.visible { display: block; }
+
+    .panel-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 600px) { .config-grid { grid-template-columns: 1fr; } }
+
+    label {
+      display: block;
+      font-size: .7rem;
+      color: var(--muted);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: .85rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input[type="text"]:focus, select:focus { border-color: var(--accent); }
+
+    .hint {
+      font-size: .68rem;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    /* Extraction mode */
+    .mode-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .mode-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--surface2);
+    }
+
+    .mode-card:hover { border-color: var(--accent2); }
+    .mode-card.active { border-color: var(--accent); background: rgba(110,231,183,.06); }
+
+    .mode-card input[type="radio"] { display: none; }
+
+    .mode-label {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: .85rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .mode-desc {
+      font-size: .7rem;
+      color: var(--muted);
+    }
+
+    /* Columns toggle */
+    .columns-config {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .columns-config.visible { display: block; }
+
+    /* Process button */
+    .btn-process {
+      margin-top: 24px;
+      width: 100%;
+      background: var(--accent);
+      color: #0a0a0f;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 24px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      letter-spacing: .02em;
+      transition: transform .15s, box-shadow .2s, background .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-process:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(110,231,183,.3);
+    }
+
+    .btn-process:active { transform: translateY(0); }
+    .btn-process:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* Progress */
+    .progress-section {
+      margin-top: 32px;
+      display: none;
+    }
+
+    .progress-section.visible { display: block; }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+
+    .progress-text {
+      font-size: .72rem;
+      color: var(--muted);
+    }
+
+    /* Results */
+    .results-section {
+      margin-top: 32px;
+      display: none;
+    }
+
+    .results-section.visible { display: block; }
+
+    /* Stats cards */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 600px) { .stats-row { grid-template-columns: 1fr 1fr; } }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+      animation: fadeUp .4s ease forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: .65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-top: 4px;
+    }
+
+    /* File list */
+    .file-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .file-list-header {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 80px;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      font-size: .65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    @media (max-width: 700px) {
+      .file-list-header { grid-template-columns: 1fr 80px; }
+      .file-list-header .col-pagador,
+      .file-list-header .col-recebedor,
+      .file-list-header .col-data { display: none; }
+    }
+
+    .file-item {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 80px;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: .78rem;
+      align-items: center;
+      transition: background .15s;
+      animation: fadeUp .3s ease forwards;
+      opacity: 0;
+    }
+
+    .file-item:last-child { border-bottom: none; }
+    .file-item:hover { background: var(--surface2); }
+
+    @media (max-width: 700px) {
+      .file-item { grid-template-columns: 1fr 80px; }
+      .file-item .col-pagador,
+      .file-item .col-recebedor,
+      .file-item .col-data { display: none; }
+    }
+
+    .file-name {
+      color: var(--text);
+      font-size: .75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .col-pagador, .col-recebedor, .col-data {
+      color: var(--muted);
+      font-size: .72rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: .65rem;
+      font-weight: 500;
+    }
+
+    .badge-ok { background: rgba(110,231,183,.15); color: var(--accent); }
+    .badge-warn { background: rgba(251,146,60,.15); color: var(--warn); }
+
+    .btn-download-single {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      padding: 4px 10px;
+      font-size: .7rem;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .btn-download-single:hover { border-color: var(--accent); background: rgba(110,231,183,.08); }
+
+    /* Bottom actions */
+    .actions-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      min-width: 160px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+    }
+
+    .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+    .btn-primary-action {
+      flex: 2;
+      min-width: 200px;
+      background: var(--accent2);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 20px;
+      color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+    }
+
+    .btn-primary-action:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(129,140,248,.3);
+    }
+
+    /* Report */
+    .report-section {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      display: none;
+    }
+
+    .report-section.visible { display: block; }
+
+    .report-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--accent2);
+      margin-bottom: 16px;
+    }
+
+    .report-content {
+      font-size: .75rem;
+      color: var(--muted);
+      line-height: 2;
+      white-space: pre-wrap;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .report-content .hi { color: var(--accent); }
+    .report-content .hi2 { color: var(--accent2); }
+    .report-content .warn { color: var(--warn); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: .8rem;
+      color: var(--accent);
+      z-index: 100;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all .3s;
+      pointer-events: none;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+
+    .log-line {
+      font-size: .7rem;
+      color: var(--muted);
+      margin: 2px 0;
+      padding-left: 8px;
+      border-left: 2px solid var(--border);
+    }
+
+    .log-line.success { border-color: var(--accent); color: var(--accent); }
+    .log-line.error { border-color: var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+<div class="glow-orb"></div>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">Split<span>Pay</span></div>
+  </header>
+  <p class="tagline">Separador inteligente de comprovantes de pagamento</p>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <span class="drop-icon">📄</span>
+    <div class="drop-title">Arraste o PDF aqui ou clique para selecionar</div>
+    <div class="drop-sub">Suporta PDFs com múltiplos comprovantes — cada página vira um arquivo</div>
+    <input type="file" id="fileInput" accept=".pdf" multiple />
+  </div>
+
+  <!-- Config panel -->
+  <div class="config-panel" id="configPanel">
+    <div class="panel-title">⚙ Configurações de nomenclatura</div>
+
+    <p style="font-size:.75rem; color:var(--muted); margin-bottom:16px;">
+      Defina como o Claude vai extrair os dados de cada comprovante para nomear os arquivos automaticamente.
+    </p>
+
+    <div class="mode-selector">
+      <label class="mode-card active" id="modeAuto">
+        <input type="radio" name="mode" value="auto" checked />
+        <div class="mode-label">🤖 Automático (IA)</div>
+        <div class="mode-desc">Claude lê o texto de cada página e extrai pagador, recebedor e data</div>
+      </label>
+      <label class="mode-card" id="modeManual">
+        <input type="radio" name="mode" value="manual" />
+        <div class="mode-label">✏️ Padrão fixo</div>
+        <div class="mode-desc">Você define um prefixo; os arquivos são numerados sequencialmente</div>
+      </label>
+    </div>
+
+    <div class="columns-config" id="manualConfig">
+      <div style="height:12px;"></div>
+      <div class="config-grid">
+        <div>
+          <label>Prefixo dos arquivos</label>
+          <input type="text" id="prefixInput" placeholder="COMP" value="COMP" />
+          <div class="hint">Ex.: COMP → COMP_001.pdf, COMP_002.pdf…</div>
+        </div>
+        <div>
+          <label>Separador</label>
+          <select id="separatorSelect">
+            <option value="_">_ underline</option>
+            <option value="-">- hífen</option>
+            <option value=" ">espaço</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="autoConfig" style="margin-top:16px;">
+      <div class="config-grid">
+        <div>
+          <label>Formato da data</label>
+          <select id="dateFormat">
+            <option value="DDMMYYYY">DDMMYYYY</option>
+            <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+          </select>
+        </div>
+        <div>
+          <label>Padrão do nome</label>
+          <select id="namePattern">
+            <option value="pagador_recebedor_data">Pagador_Recebedor_Data</option>
+            <option value="data_pagador_recebedor">Data_Pagador_Recebedor</option>
+            <option value="recebedor_pagador_data">Recebedor_Pagador_Data</option>
+            <option value="data_recebedor_pagador">Data_Recebedor_Pagador</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label>Chave de API Anthropic (Claude)</label>
+        <input type="text" id="apiKey" placeholder="sk-ant-api03-..." />
+        <div class="hint">
+          Usada só no seu navegador, nunca é enviada a terceiros. 
+          Obtenha em <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent2)">console.anthropic.com</a>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-process" id="btnProcess">Separar comprovantes →</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-text" id="progressText">Inicializando…</div>
+    <div id="logContainer" style="margin-top:12px; max-height:120px; overflow-y:auto;"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSection">
+
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="file-list">
+      <div class="file-list-header">
+        <div>arquivo</div>
+        <div class="col-pagador">pagador</div>
+        <div class="col-recebedor">recebedor</div>
+        <div class="col-data">data</div>
+        <div>baixar</div>
+      </div>
+      <div id="fileListBody"></div>
+    </div>
+
+    <div class="actions-row">
+      <button class="btn-secondary" id="btnReset">↩ Novo arquivo</button>
+      <button class="btn-secondary" id="btnReport">📋 Ver relatório</button>
+      <button class="btn-primary-action" id="btnDownloadAll">⬇ Baixar todos (.zip)</button>
+    </div>
+
+    <div class="report-section" id="reportSection">
+      <div class="report-title">📊 Relatório de processamento</div>
+      <div class="report-content" id="reportContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<footer>SplitPay — processamento 100% local no navegador · nenhum arquivo é enviado a servidores</footer>
+
+<script>
+// ─── Setup PDF.js ───────────────────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let pdfFiles = [];          // raw File objects
+let processedPages = [];    // { fileName, pagador, recebedor, data, bytes, status }
+let reportLines = [];
+
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const dropZone      = document.getElementById('dropZone');
+const fileInput     = document.getElementById('fileInput');
+const configPanel   = document.getElementById('configPanel');
+const btnProcess    = document.getElementById('btnProcess');
+const progressSection = document.getElementById('progressSection');
+const progressFill  = document.getElementById('progressFill');
+const progressText  = document.getElementById('progressText');
+const logContainer  = document.getElementById('logContainer');
+const resultsSection = document.getElementById('resultsSection');
+const statsRow      = document.getElementById('statsRow');
+const fileListBody  = document.getElementById('fileListBody');
+const btnDownloadAll = document.getElementById('btnDownloadAll');
+const btnReset      = document.getElementById('btnReset');
+const btnReport     = document.getElementById('btnReport');
+const reportSection = document.getElementById('reportSection');
+const reportContent = document.getElementById('reportContent');
+const modeAuto      = document.getElementById('modeAuto');
+const modeManual    = document.getElementById('modeManual');
+const manualConfig  = document.getElementById('manualConfig');
+const autoConfig    = document.getElementById('autoConfig');
+const toast         = document.getElementById('toast');
+
+// ─── Mode toggle ─────────────────────────────────────────────────────────────
+document.querySelectorAll('input[name="mode"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const isAuto = r.value === 'auto';
+    modeAuto.classList.toggle('active', isAuto);
+    modeManual.classList.toggle('active', !isAuto);
+    manualConfig.classList.toggle('visible', !isAuto);
+    autoConfig.style.display = isAuto ? '' : 'none';
+  });
+});
+modeManual.addEventListener('click', () => {
+  document.querySelector('input[name="mode"][value="manual"]').dispatchEvent(new Event('change'));
+});
+modeAuto.addEventListener('click', () => {
+  document.querySelector('input[name="mode"][value="auto"]').dispatchEvent(new Event('change'));
+});
+
+// ─── Drag & Drop ─────────────────────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  handleFiles([...e.dataTransfer.files].filter(f => f.type === 'application/pdf'));
+});
+fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
+
+function handleFiles(files) {
+  if (!files.length) return;
+  pdfFiles = files;
+  const names = files.map(f => f.name).join(', ');
+  dropZone.querySelector('.drop-title').textContent = `${files.length} arquivo(s) selecionado(s)`;
+  dropZone.querySelector('.drop-sub').textContent = names.length > 80 ? names.slice(0,80)+'…' : names;
+  configPanel.classList.add('visible');
+}
+
+// ─── Process ─────────────────────────────────────────────────────────────────
+btnProcess.addEventListener('click', startProcessing);
+
+async function startProcessing() {
+  if (!pdfFiles.length) { showToast('Selecione um arquivo PDF primeiro'); return; }
+
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (mode === 'auto' && !apiKey) {
+    showToast('Insira a chave de API do Claude para usar o modo automático');
+    return;
+  }
+
+  // reset
+  processedPages = [];
+  reportLines = [];
+  fileListBody.innerHTML = '';
+  statsRow.innerHTML = '';
+  logContainer.innerHTML = '';
+  progressFill.style.width = '0%';
+
+  configPanel.querySelector('.btn-process').disabled = true;
+  progressSection.classList.add('visible');
+  resultsSection.classList.remove('visible');
+  reportSection.classList.remove('visible');
+
+  let totalPages = 0;
+  let donePages = 0;
+
+  // Count total pages across all files
+  for (const file of pdfFiles) {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    totalPages += pdf.numPages;
+  }
+
+  addLog(`📂 ${pdfFiles.length} arquivo(s) · ${totalPages} páginas no total`, 'success');
+
+  for (const file of pdfFiles) {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pdfLibDoc = await PDFLib.PDFDocument.load(buf);
+
+    for (let pageIdx = 0; pageIdx < pdf.numPages; pageIdx++) {
+      donePages++;
+      setProgress(donePages, totalPages, `Processando página ${donePages}/${totalPages}…`);
+
+      let pagador = '', recebedor = '', data = '';
+      let status = 'ok';
+
+      // Extract single-page PDF bytes
+      const newDoc = await PDFLib.PDFDocument.create();
+      const [copiedPage] = await newDoc.copyPages(pdfLibDoc, [pageIdx]);
+      newDoc.addPage(copiedPage);
+      const pageBytes = await newDoc.save();
+
+      if (mode === 'auto') {
+        // Extract text via PDF.js
+        const page = await pdf.getPage(pageIdx + 1);
+        const content = await page.getTextContent();
+        const text = content.items.map(i => i.str).join(' ');
+
+        addLog(`🔍 Extraindo dados da página ${pageIdx+1}…`);
+
+        try {
+          const extracted = await extractWithClaude(text, apiKey);
+          pagador    = sanitizeFileName(extracted.pagador || 'DESCONHECIDO');
+          recebedor  = sanitizeFileName(extracted.recebedor || 'DESCONHECIDO');
+          data       = formatDate(extracted.data || '', document.getElementById('dateFormat').value);
+          if (pagador === 'DESCONHECIDO' || recebedor === 'DESCONHECIDO') status = 'warn';
+        } catch(err) {
+          addLog(`⚠ Falha na extração: ${err.message}`, 'error');
+          pagador = 'PAGADOR'; recebedor = 'RECEBEDOR'; data = 'SEMDATA';
+          status = 'warn';
+        }
+      }
+
+      const fileName = buildFileName(mode, pageIdx, pagador, recebedor, data, donePages);
+      addLog(`✓ ${fileName}`, 'success');
+      processedPages.push({ fileName, pagador, recebedor, data, bytes: pageBytes, status, sourceFile: file.name });
+    }
+  }
+
+  setProgress(totalPages, totalPages, 'Concluído!');
+  buildResults();
+  configPanel.querySelector('.btn-process').disabled = false;
+}
+
+// ─── Claude API call ──────────────────────────────────────────────────────────
+async function extractWithClaude(text, apiKey) {
+  const prompt = `Analise o texto abaixo de um comprovante de pagamento e extraia:
+1. Nome do PAGADOR (quem pagou)
+2. Nome do RECEBEDOR (quem recebeu o pagamento, pode ser beneficiário, favorecido, nome da empresa/pessoa)
+3. DATA do pagamento (no formato DD/MM/AAAA se possível)
+
+Retorne APENAS um JSON válido, sem markdown, sem texto adicional, neste formato exato:
+{"pagador":"NOME","recebedor":"NOME","data":"DD/MM/AAAA"}
+
+Se não encontrar algum dado, use string vazia "".
+
+Texto do comprovante:
+${text.slice(0, 3000)}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const raw = data.content?.[0]?.text || '{}';
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function buildFileName(mode, pageIdx, pagador, recebedor, data, seq) {
+  const sep = document.getElementById('separatorSelect')?.value || '_';
+  const prefix = (document.getElementById('prefixInput')?.value || 'COMP').trim() || 'COMP';
+
+  if (mode === 'manual') {
+    return `${prefix}${sep}${String(seq).padStart(3,'0')}.pdf`;
+  }
+
+  const pattern = document.getElementById('namePattern').value;
+  const parts = {
+    pagador: pagador || 'PAGADOR',
+    recebedor: recebedor || 'RECEBEDOR',
+    data: data || 'SEMDATA',
+  };
+  const order = pattern.split('_');
+  return order.map(k => parts[k]).join('_') + '.pdf';
+}
+
+function sanitizeFileName(str) {
+  return str
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-zA-Z0-9\s\-]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .toUpperCase()
+    .slice(0, 40);
+}
+
+function formatDate(raw, fmt) {
+  if (!raw) return 'SEMDATA';
+  // Try to parse DD/MM/AAAA or AAAA-MM-DD
+  const clean = raw.replace(/[^\d\/\-]/g, '');
+  let d, m, y;
+
+  const iso = clean.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
+  const br  = clean.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
+
+  if (iso) { [,y,m,d] = iso; }
+  else if (br) { [,d,m,y] = br; }
+  else return sanitizeFileName(raw) || 'SEMDATA';
+
+  if (fmt === 'DDMMYYYY')   return `${d}${m}${y}`;
+  if (fmt === 'DD-MM-YYYY') return `${d}-${m}-${y}`;
+  if (fmt === 'YYYY-MM-DD') return `${y}-${m}-${d}`;
+  return `${d}${m}${y}`;
+}
+
+function setProgress(done, total, msg) {
+  const pct = total ? Math.round(done/total*100) : 0;
+  progressFill.style.width = pct + '%';
+  progressText.textContent = msg;
+}
+
+function addLog(msg, type='') {
+  const el = document.createElement('div');
+  el.className = 'log-line' + (type ? ` ${type}` : '');
+  el.textContent = msg;
+  logContainer.appendChild(el);
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+// ─── Build results UI ────────────────────────────────────────────────────────
+function buildResults() {
+  resultsSection.classList.add('visible');
+
+  const total = processedPages.length;
+  const ok    = processedPages.filter(p => p.status === 'ok').length;
+  const warn  = processedPages.filter(p => p.status === 'warn').length;
+
+  const stats = [
+    { value: total, label: 'Comprovantes' },
+    { value: ok,    label: 'Com dados OK' },
+    { value: warn,  label: 'Dados parciais' },
+  ];
+
+  statsRow.innerHTML = stats.map((s, i) => `
+    <div class="stat-card" style="animation-delay:${i*0.1}s">
+      <div class="stat-value">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>`).join('');
+
+  processedPages.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-item';
+    row.style.animationDelay = `${i * 0.04}s`;
+    row.innerHTML = `
+      <div class="file-name" title="${p.fileName}">${p.fileName}</div>
+      <div class="col-pagador">${p.pagador || '—'}</div>
+      <div class="col-recebedor">${p.recebedor || '—'}</div>
+      <div class="col-data">${p.data || '—'}</div>
+      <div>
+        <span class="badge ${p.status==='ok'?'badge-ok':'badge-warn'}">${p.status==='ok'?'OK':'?'}</span>
+        <button class="btn-download-single" data-idx="${i}">↓</button>
+      </div>`;
+    fileListBody.appendChild(row);
+  });
+
+  fileListBody.querySelectorAll('.btn-download-single').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = processedPages[+btn.dataset.idx];
+      downloadBlob(new Blob([p.bytes], {type:'application/pdf'}), p.fileName);
+    });
+  });
+
+  buildReport();
+}
+
+// ─── Report ───────────────────────────────────────────────────────────────────
+function buildReport() {
+  const now = new Date().toLocaleString('pt-BR');
+  const total = processedPages.length;
+  const ok  = processedPages.filter(p => p.status==='ok').length;
+  const warn = processedPages.filter(p => p.status==='warn').length;
+
+  const lines = [
+    `══════════════════════════════════════════════`,
+    `  RELATÓRIO DE SEPARAÇÃO — SplitPay`,
+    `  Gerado em: ${now}`,
+    `══════════════════════════════════════════════`,
+    ``,
+    `  Arquivos fonte processados : ${pdfFiles.length}`,
+    `  Total de comprovantes       : ${total}`,
+    `  Com dados extraídos (OK)   : ${ok}`,
+    `  Dados parciais / alertas   : ${warn}`,
+    ``,
+    `──────────────────────────────────────────────`,
+    `  LISTA DE ARQUIVOS GERADOS`,
+    `──────────────────────────────────────────────`,
+    ...processedPages.map((p, i) =>
+      `  ${String(i+1).padStart(3,'0')}  ${p.fileName.padEnd(55,' ')}  [${p.status.toUpperCase()}]`
+    ),
+    ``,
+    `══════════════════════════════════════════════`,
+    `  Fim do relatório`,
+    `══════════════════════════════════════════════`,
+  ];
+
+  reportContent.textContent = lines.join('\n');
+  reportLines = lines;
+}
+
+btnReport.addEventListener('click', () => {
+  reportSection.classList.toggle('visible');
+  btnReport.textContent = reportSection.classList.contains('visible') ? '📋 Ocultar relatório' : '📋 Ver relatório';
+});
+
+// ─── Download all as ZIP ──────────────────────────────────────────────────────
+btnDownloadAll.addEventListener('click', async () => {
+  if (!processedPages.length) return;
+  btnDownloadAll.textContent = '⏳ Gerando ZIP…';
+  btnDownloadAll.disabled = true;
+
+  const zip = new JSZip();
+  const folder = zip.folder('comprovantes');
+
+  processedPages.forEach(p => folder.file(p.fileName, p.bytes));
+  folder.file('RELATORIO.txt', reportLines.join('\n'));
+
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  downloadBlob(blob, 'comprovantes.zip');
+
+  btnDownloadAll.textContent = '⬇ Baixar todos (.zip)';
+  btnDownloadAll.disabled = false;
+  showToast(`${processedPages.length} arquivos compactados ✓`);
+});
+
+// ─── Reset ────────────────────────────────────────────────────────────────────
+btnReset.addEventListener('click', () => {
+  pdfFiles = [];
+  processedPages = [];
+  fileInput.value = '';
+  dropZone.querySelector('.drop-title').textContent = 'Arraste o PDF aqui ou clique para selecionar';
+  dropZone.querySelector('.drop-sub').textContent = 'Suporta PDFs com múltiplos comprovantes — cada página vira um arquivo';
+  configPanel.classList.remove('visible');
+  progressSection.classList.remove('visible');
+  resultsSection.classList.remove('visible');
+  reportSection.classList.remove('visible');
+  progressFill.style.width = '0%';
+  logContainer.innerHTML = '';
+  statsRow.innerHTML = '';
+  fileListBody.innerHTML = '';
+});
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
