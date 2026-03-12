@@ -40,7 +40,6 @@
       overflow-x: hidden;
     }
 
-    /* Animated grid background */
     body::before {
       content: '';
       position: fixed;
@@ -79,7 +78,6 @@
       padding: 48px 24px 80px;
     }
 
-    /* Header */
     header {
       display: flex;
       align-items: baseline;
@@ -107,7 +105,6 @@
       padding-left: 2px;
     }
 
-    /* Drop zone */
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: 16px;
@@ -164,7 +161,6 @@
 
     #fileInput { display: none; }
 
-    /* Config panel */
     .config-panel {
       margin-top: 32px;
       background: var(--surface);
@@ -232,7 +228,6 @@
       margin-top: 5px;
     }
 
-    /* Extraction mode */
     .mode-selector {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -251,7 +246,6 @@
 
     .mode-card:hover { border-color: var(--accent2); }
     .mode-card.active { border-color: var(--accent); background: rgba(110,231,183,.06); }
-
     .mode-card input[type="radio"] { display: none; }
 
     .mode-label {
@@ -267,7 +261,6 @@
       color: var(--muted);
     }
 
-    /* Columns toggle */
     .columns-config {
       margin-top: 20px;
       display: none;
@@ -275,7 +268,6 @@
 
     .columns-config.visible { display: block; }
 
-    /* Process button */
     .btn-process {
       margin-top: 24px;
       width: 100%;
@@ -290,8 +282,6 @@
       cursor: pointer;
       letter-spacing: .02em;
       transition: transform .15s, box-shadow .2s, background .2s;
-      position: relative;
-      overflow: hidden;
     }
 
     .btn-process:hover {
@@ -302,7 +292,6 @@
     .btn-process:active { transform: translateY(0); }
     .btn-process:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
-    /* Progress */
     .progress-section {
       margin-top: 32px;
       display: none;
@@ -332,7 +321,6 @@
       color: var(--muted);
     }
 
-    /* Results */
     .results-section {
       margin-top: 32px;
       display: none;
@@ -340,7 +328,6 @@
 
     .results-section.visible { display: block; }
 
-    /* Stats cards */
     .stats-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -380,7 +367,6 @@
       margin-top: 4px;
     }
 
-    /* File list */
     .file-list {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -473,7 +459,6 @@
 
     .btn-download-single:hover { border-color: var(--accent); background: rgba(110,231,183,.08); }
 
-    /* Bottom actions */
     .actions-row {
       display: flex;
       gap: 12px;
@@ -520,7 +505,6 @@
       box-shadow: 0 8px 24px rgba(129,140,248,.3);
     }
 
-    /* Report */
     .report-section {
       margin-top: 24px;
       background: var(--surface);
@@ -548,11 +532,6 @@
       font-family: 'DM Mono', monospace;
     }
 
-    .report-content .hi { color: var(--accent); }
-    .report-content .hi2 { color: var(--accent2); }
-    .report-content .warn { color: var(--warn); }
-
-    /* Toast */
     .toast {
       position: fixed;
       bottom: 32px;
@@ -572,7 +551,6 @@
 
     .toast.show { transform: translateY(0); opacity: 1; }
 
-    /* Footer */
     footer {
       text-align: center;
       margin-top: 60px;
@@ -598,7 +576,6 @@
 
 <div class="container">
 
-  <!-- Header -->
   <header>
     <div class="logo">Split<span>Pay</span></div>
   </header>
@@ -616,10 +593,6 @@
   <div class="config-panel" id="configPanel">
     <div class="panel-title">⚙ Configurações de nomenclatura</div>
 
-    <p style="font-size:.75rem; color:var(--muted); margin-bottom:16px;">
-      Defina como o Claude vai extrair os dados de cada comprovante para nomear os arquivos automaticamente.
-    </p>
-
     <div class="mode-selector">
       <label class="mode-card active" id="modeAuto">
         <input type="radio" name="mode" value="auto" checked />
@@ -633,6 +606,7 @@
       </label>
     </div>
 
+    <!-- Manual config -->
     <div class="columns-config" id="manualConfig">
       <div style="height:12px;"></div>
       <div class="config-grid">
@@ -652,6 +626,7 @@
       </div>
     </div>
 
+    <!-- Auto config (sem campo de chave) -->
     <div id="autoConfig" style="margin-top:16px;">
       <div class="config-grid">
         <div>
@@ -670,14 +645,6 @@
             <option value="recebedor_pagador_data">Recebedor_Pagador_Data</option>
             <option value="data_recebedor_pagador">Data_Recebedor_Pagador</option>
           </select>
-        </div>
-      </div>
-      <div style="margin-top:12px;">
-        <label>Chave de API Anthropic (Claude)</label>
-        <input type="text" id="apiKey" placeholder="sk-ant-api03-..." />
-        <div class="hint">
-          Usada só no seu navegador, nunca é enviada a terceiros. 
-          Obtenha em <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent2)">console.anthropic.com</a>
         </div>
       </div>
     </div>
@@ -728,39 +695,42 @@
 <footer>SplitPay — processamento 100% local no navegador · nenhum arquivo é enviado a servidores</footer>
 
 <script>
-// ─── Setup PDF.js ───────────────────────────────────────────────────────────
+// ─── Chave de API embutida ────────────────────────────────────────────────────
+const ANTHROPIC_API_KEY = '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';
+
+// ─── Setup PDF.js ─────────────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ─── State ───────────────────────────────────────────────────────────────────
-let pdfFiles = [];          // raw File objects
-let processedPages = [];    // { fileName, pagador, recebedor, data, bytes, status }
+// ─── State ────────────────────────────────────────────────────────────────────
+let pdfFiles = [];
+let processedPages = [];
 let reportLines = [];
 
-// ─── DOM refs ────────────────────────────────────────────────────────────────
-const dropZone      = document.getElementById('dropZone');
-const fileInput     = document.getElementById('fileInput');
-const configPanel   = document.getElementById('configPanel');
-const btnProcess    = document.getElementById('btnProcess');
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const dropZone        = document.getElementById('dropZone');
+const fileInput       = document.getElementById('fileInput');
+const configPanel     = document.getElementById('configPanel');
+const btnProcess      = document.getElementById('btnProcess');
 const progressSection = document.getElementById('progressSection');
-const progressFill  = document.getElementById('progressFill');
-const progressText  = document.getElementById('progressText');
-const logContainer  = document.getElementById('logContainer');
-const resultsSection = document.getElementById('resultsSection');
-const statsRow      = document.getElementById('statsRow');
-const fileListBody  = document.getElementById('fileListBody');
-const btnDownloadAll = document.getElementById('btnDownloadAll');
-const btnReset      = document.getElementById('btnReset');
-const btnReport     = document.getElementById('btnReport');
-const reportSection = document.getElementById('reportSection');
-const reportContent = document.getElementById('reportContent');
-const modeAuto      = document.getElementById('modeAuto');
-const modeManual    = document.getElementById('modeManual');
-const manualConfig  = document.getElementById('manualConfig');
-const autoConfig    = document.getElementById('autoConfig');
-const toast         = document.getElementById('toast');
+const progressFill    = document.getElementById('progressFill');
+const progressText    = document.getElementById('progressText');
+const logContainer    = document.getElementById('logContainer');
+const resultsSection  = document.getElementById('resultsSection');
+const statsRow        = document.getElementById('statsRow');
+const fileListBody    = document.getElementById('fileListBody');
+const btnDownloadAll  = document.getElementById('btnDownloadAll');
+const btnReset        = document.getElementById('btnReset');
+const btnReport       = document.getElementById('btnReport');
+const reportSection   = document.getElementById('reportSection');
+const reportContent   = document.getElementById('reportContent');
+const modeAuto        = document.getElementById('modeAuto');
+const modeManual      = document.getElementById('modeManual');
+const manualConfig    = document.getElementById('manualConfig');
+const autoConfig      = document.getElementById('autoConfig');
+const toast           = document.getElementById('toast');
 
-// ─── Mode toggle ─────────────────────────────────────────────────────────────
+// ─── Mode toggle ──────────────────────────────────────────────────────────────
 document.querySelectorAll('input[name="mode"]').forEach(r => {
   r.addEventListener('change', () => {
     const isAuto = r.value === 'auto';
@@ -777,7 +747,7 @@ modeAuto.addEventListener('click', () => {
   document.querySelector('input[name="mode"][value="auto"]').dispatchEvent(new Event('change'));
 });
 
-// ─── Drag & Drop ─────────────────────────────────────────────────────────────
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
@@ -797,20 +767,14 @@ function handleFiles(files) {
   configPanel.classList.add('visible');
 }
 
-// ─── Process ─────────────────────────────────────────────────────────────────
+// ─── Process ──────────────────────────────────────────────────────────────────
 btnProcess.addEventListener('click', startProcessing);
 
 async function startProcessing() {
   if (!pdfFiles.length) { showToast('Selecione um arquivo PDF primeiro'); return; }
 
   const mode = document.querySelector('input[name="mode"]:checked').value;
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if (mode === 'auto' && !apiKey) {
-    showToast('Insira a chave de API do Claude para usar o modo automático');
-    return;
-  }
 
-  // reset
   processedPages = [];
   reportLines = [];
   fileListBody.innerHTML = '';
@@ -826,7 +790,6 @@ async function startProcessing() {
   let totalPages = 0;
   let donePages = 0;
 
-  // Count total pages across all files
   for (const file of pdfFiles) {
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -847,14 +810,12 @@ async function startProcessing() {
       let pagador = '', recebedor = '', data = '';
       let status = 'ok';
 
-      // Extract single-page PDF bytes
       const newDoc = await PDFLib.PDFDocument.create();
       const [copiedPage] = await newDoc.copyPages(pdfLibDoc, [pageIdx]);
       newDoc.addPage(copiedPage);
       const pageBytes = await newDoc.save();
 
       if (mode === 'auto') {
-        // Extract text via PDF.js
         const page = await pdf.getPage(pageIdx + 1);
         const content = await page.getTextContent();
         const text = content.items.map(i => i.str).join(' ');
@@ -862,10 +823,10 @@ async function startProcessing() {
         addLog(`🔍 Extraindo dados da página ${pageIdx+1}…`);
 
         try {
-          const extracted = await extractWithClaude(text, apiKey);
-          pagador    = sanitizeFileName(extracted.pagador || 'DESCONHECIDO');
-          recebedor  = sanitizeFileName(extracted.recebedor || 'DESCONHECIDO');
-          data       = formatDate(extracted.data || '', document.getElementById('dateFormat').value);
+          const extracted = await extractWithClaude(text);
+          pagador   = sanitizeFileName(extracted.pagador || 'DESCONHECIDO');
+          recebedor = sanitizeFileName(extracted.recebedor || 'DESCONHECIDO');
+          data      = formatDate(extracted.data || '', document.getElementById('dateFormat').value);
           if (pagador === 'DESCONHECIDO' || recebedor === 'DESCONHECIDO') status = 'warn';
         } catch(err) {
           addLog(`⚠ Falha na extração: ${err.message}`, 'error');
@@ -885,8 +846,8 @@ async function startProcessing() {
   configPanel.querySelector('.btn-process').disabled = false;
 }
 
-// ─── Claude API call ──────────────────────────────────────────────────────────
-async function extractWithClaude(text, apiKey) {
+// ─── Claude API call (usa chave embutida) ─────────────────────────────────────
+async function extractWithClaude(text) {
   const prompt = `Analise o texto abaixo de um comprovante de pagamento e extraia:
 1. Nome do PAGADOR (quem pagou)
 2. Nome do RECEBEDOR (quem recebeu o pagamento, pode ser beneficiário, favorecido, nome da empresa/pessoa)
@@ -904,7 +865,7 @@ ${text.slice(0, 3000)}`;
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      'x-api-key': ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
@@ -926,7 +887,7 @@ ${text.slice(0, 3000)}`;
   return JSON.parse(clean);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildFileName(mode, pageIdx, pagador, recebedor, data, seq) {
   const sep = document.getElementById('separatorSelect')?.value || '_';
   const prefix = (document.getElementById('prefixInput')?.value || 'COMP').trim() || 'COMP';
@@ -937,9 +898,9 @@ function buildFileName(mode, pageIdx, pagador, recebedor, data, seq) {
 
   const pattern = document.getElementById('namePattern').value;
   const parts = {
-    pagador: pagador || 'PAGADOR',
+    pagador:   pagador   || 'PAGADOR',
     recebedor: recebedor || 'RECEBEDOR',
-    data: data || 'SEMDATA',
+    data:      data      || 'SEMDATA',
   };
   const order = pattern.split('_');
   return order.map(k => parts[k]).join('_') + '.pdf';
@@ -947,7 +908,7 @@ function buildFileName(mode, pageIdx, pagador, recebedor, data, seq) {
 
 function sanitizeFileName(str) {
   return str
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9\s\-]/g, '')
     .trim()
     .replace(/\s+/g, '_')
@@ -957,7 +918,6 @@ function sanitizeFileName(str) {
 
 function formatDate(raw, fmt) {
   if (!raw) return 'SEMDATA';
-  // Try to parse DD/MM/AAAA or AAAA-MM-DD
   const clean = raw.replace(/[^\d\/\-]/g, '');
   let d, m, y;
 
@@ -988,7 +948,7 @@ function addLog(msg, type='') {
   logContainer.scrollTop = logContainer.scrollHeight;
 }
 
-// ─── Build results UI ────────────────────────────────────────────────────────
+// ─── Build results UI ─────────────────────────────────────────────────────────
 function buildResults() {
   resultsSection.classList.add('visible');
 
@@ -1038,8 +998,8 @@ function buildResults() {
 function buildReport() {
   const now = new Date().toLocaleString('pt-BR');
   const total = processedPages.length;
-  const ok  = processedPages.filter(p => p.status==='ok').length;
-  const warn = processedPages.filter(p => p.status==='warn').length;
+  const ok    = processedPages.filter(p => p.status==='ok').length;
+  const warn  = processedPages.filter(p => p.status==='warn').length;
 
   const lines = [
     `══════════════════════════════════════════════`,
